@@ -1,0 +1,132 @@
+<!--
+  dashboard/index.html — SATSENTINEL Dashboard
+
+  ============================ HOW TO RUN THIS ============================
+  This is a static HTML file, so it needs no build step. But it calls the
+  FastAPI backend, so the backend must be running first:
+
+      cd SATSENTINEL
+      uvicorn api.main:app --reload --port 8000
+
+  Then just double-click this file to open it in a browser (or serve it
+  with `python -m http.server` from the dashboard/ folder). Enter a
+  channel ID like "P-1" and click "Run /detect".
+  ===========================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>SATSENTINEL Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0f1115; color: #e8e8e8; margin: 0; padding: 24px; }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .sub { color: #9aa0a6; margin-bottom: 20px; font-size: 0.9rem; }
+  .controls { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+  input, button { padding: 8px 12px; border-radius: 6px; border: 1px solid #333; background: #1a1d24; color: #eee; font-size: 0.95rem; }
+  button { cursor: pointer; background: #2f6feb; border: none; }
+  button:hover { background: #3d7dfa; }
+  .status { margin-left: 8px; color: #9aa0a6; font-size: 0.85rem; }
+  .card { background: #171a21; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .flag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; }
+  .flag.anomaly { background: #4a1f1f; color: #ff8080; }
+  .flag.normal { background: #1f3a24; color: #7ee08a; }
+</style>
+</head>
+<body>
+  <h1>SATSENTINEL — Telemetry Anomaly Dashboard</h1>
+  <div class="sub">Calls /detect on the FastAPI backend and plots telemetry, reconstruction error, and anomaly flags.</div>
+
+  <div class="controls">
+    <input id="apiBase" value="http://localhost:8000" size="26" />
+    <input id="channelId" placeholder="channel_id, e.g. P-1" value="P-1" />
+    <button onclick="runDetect()">Run /detect</button>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="card">
+    <canvas id="errorChart" height="90"></canvas>
+  </div>
+  <div class="card" id="summary"></div>
+
+  <script>
+    // Chart.js instance is kept at module scope so we can .destroy() and
+    // rebuild it each time the user runs a new channel (avoids stacking
+    // multiple charts on top of each other).
+    let chart = null;
+
+    async function runDetect() {
+      const apiBase = document.getElementById('apiBase').value.replace(/\/$/, '');
+      const channel = document.getElementById('channelId').value.trim();
+      const statusEl = document.getElementById('status');
+      const summaryEl = document.getElementById('summary');
+      statusEl.textContent = 'requesting...';
+
+      try {
+        // Calls POST /detect on the FastAPI backend (see api/main.py).
+        const res = await fetch(apiBase + '/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel_id: channel })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        statusEl.textContent = 'ok, ' + data.error_series.length + ' windows';
+
+        // x-axis is just the window index (0, 1, 2, ...).
+        const labels = data.error_series.map((_, i) => i);
+        // Overlay series: only keep the error value where the model flagged
+        // "anomaly", null elsewhere, so Chart.js draws isolated red dots.
+        const anomalyPoints = data.error_series.map((v, i) =>
+          data.decision[i] === 'anomaly' ? v : null
+        );
+
+        if (chart) chart.destroy();
+        const ctx = document.getElementById('errorChart').getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Reconstruction error',
+                data: data.error_series,
+                borderColor: '#3d7dfa',
+                pointRadius: 0,
+                borderWidth: 1.5,
+                tension: 0.15
+              },
+              {
+                label: 'Flagged anomaly window',
+                data: anomalyPoints,
+                borderColor: '#ff5c5c',
+                backgroundColor: '#ff5c5c',
+                pointRadius: 3,
+                showLine: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              x: { ticks: { color: '#9aa0a6' }, title: { display: true, text: 'window index', color: '#9aa0a6' } },
+              y: { ticks: { color: '#9aa0a6' }, title: { display: true, text: 'reconstruction error', color: '#9aa0a6' } }
+            },
+            plugins: { legend: { labels: { color: '#e8e8e8' } } }
+          }
+        });
+
+        const anomalyCount = data.decision.filter(d => d === 'anomaly').length;
+        summaryEl.innerHTML = `
+          <b>Channel:</b> ${data.channel} &nbsp;
+          <b>Max score:</b> ${data.max_score.toFixed(3)} &nbsp;
+          <b>Mean score:</b> ${data.mean_score.toFixed(3)} &nbsp;
+          <b>Flagged windows:</b> ${anomalyCount} / ${data.decision.length}
+        `;
+      } catch (err) {
+        statusEl.textContent = 'error: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
