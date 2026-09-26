@@ -3,31 +3,6 @@ data/load_data.py
 
 Loads NASA SMAP/MSL telemetry channels for SATSENTINEL.
 
-=========================== HOW TO RUN THIS FILE ===========================
-    cd SATSENTINEL
-    pip install -r requirements.txt
-    python -m data.load_data
-This prints, for every default channel, whether it found the REAL Kaggle
-data or fell back to SYNTHETIC data. If everything below says "source=real",
-your dataset is wired up correctly.
-=============================================================================
-
-Expected real-data layout (from the Kaggle SMAP/MSL anomaly detection dataset,
-patrickfleith/nasa-anomaly-detection-dataset-smap-msl):
-
-    data/raw/train/<channel_id>.npy
-    data/raw/test/<channel_id>.npy
-    data/raw/labeled_anomalies.csv
-
-labeled_anomalies.csv columns (as published by NASA/Hundman et al.):
-    chan_id, spacecraft, class, num_values, anomaly_sequences, ...
-    anomaly_sequences is a stringified list of [start, end] index pairs
-    into the TEST array for that channel.
-
-If the raw files aren't present (e.g. you haven't pulled the Kaggle dataset
-into data/raw/ yet), this module falls back to synthetic telemetry so the
-rest of the pipeline (preprocessing -> AE -> IF -> eval -> API) can be
-built, run, and debugged today without blocking on the download.
 """
 
 import ast

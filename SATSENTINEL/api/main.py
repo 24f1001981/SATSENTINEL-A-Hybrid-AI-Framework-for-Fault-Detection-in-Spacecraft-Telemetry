@@ -5,22 +5,6 @@ FastAPI skeleton: one POST endpoint /detect taking a channel ID (uses stored
 test data) or a raw array (new telemetry), returning decision + score.
 Also exposes /rank for the multi-channel "which channel is responsible" view.
 
-=========================== HOW TO RUN THIS FILE ===========================
-    cd SATSENTINEL
-    pip install fastapi uvicorn
-    python models/train.py                      # train weights first (see below)
-    uvicorn api.main:app --reload --port 8000
-Then open dashboard/index.html in a browser (it points at
-http://localhost:8000 by default) or test with curl:
-
-    curl -X POST http://localhost:8000/detect \
-         -H "Content-Type: application/json" \
-         -d "{\"channel_id\": \"P-1\"}"
-
-    curl -X POST http://localhost:8000/rank \ 
-         -H "Content-Type: application/json" \
-         -d "{\"channel_ids\": [\"P-1\", \"S-1\", \"E-1\"]}"
-=============================================================================
 """
 
 import os
@@ -28,12 +12,20 @@ import sys
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from pipeline import run_pipeline, run_pipeline_multi
 
 app = FastAPI(title="SATSENTINEL API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class DetectRequest(BaseModel):
