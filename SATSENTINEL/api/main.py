@@ -17,7 +17,7 @@ http://localhost:8000 by default) or test with curl:
          -H "Content-Type: application/json" \
          -d "{\"channel_id\": \"P-1\"}"
 
-    curl -X POST http://localhost:8000/rank \
+    curl -X POST http://localhost:8000/rank \ 
          -H "Content-Type: application/json" \
          -d "{\"channel_ids\": [\"P-1\", \"S-1\", \"E-1\"]}"
 =============================================================================
